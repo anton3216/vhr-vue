@@ -1,17 +1,84 @@
 <template>
 	<div>
-		<div style="margin-top:10px;display:flex;justify-content: space-between;">
-			<div>
-				<el-input clearable v-model="keyword" style="width: 350px;" size="mini" prefix-icon="el-icon-search" placeholder="通过员工名搜索员工..."
-				 @clear="initEmps"></el-input>
-				<el-button style="margin-left : 10px;" size="mini" type="primary" @click="initEmps" icon="el-icon-search">搜索</el-button>
-				<el-button size="mini" type="primary" icon="el-icon-s-grid">高级搜索</el-button>
+		<div>
+			<div style="margin-top:10px;display:flex;justify-content: space-between;">
+				<div>
+					<el-input :disabled="nomalSearchDisabled" clearable v-model="keyword" style="width: 350px;" size="mini"
+					 prefix-icon="el-icon-search" placeholder="通过员工名搜索员工..." @clear="initEmps"></el-input>
+					<el-button :disabled="nomalSearchDisabled" style="margin-left : 10px;" size="mini" type="primary" @click="initEmps"
+					 icon="el-icon-search">搜索</el-button>
+					<el-button size="mini" type="primary" :icon="showAdvSearchDisabled?'el-icon-folder-opened':'el-icon-folder'"
+					 @click="showAdvSearch">高级搜索</el-button>
+				</div>
+				<div>
+					<el-upload :disabled="uploadingDisabled" :show-file-list="false" :before-upload="beforeUpload" :on-success="uploadSuccess"
+					 :on-error="uploadError" action="employee/basic/import/" style="display: inline-flex;margin-right: 10px;">
+						<el-button :disabled="uploadingDisabled" size="mini" type="success" :icon="uploadButtonIcon">{{uploadButtonText}}</el-button>
+					</el-upload>
+					<el-button size="mini" type="success" icon="el-icon-download" @click="exportData">导出数据</el-button>
+					<el-button size="mini" type="primary" icon="el-icon-plus" @click="showAddView">添加员工</el-button>
+				</div>
 			</div>
-			<div>
-				<el-button size="mini" type="success" icon="el-icon-arrow-up">导入数据</el-button>
-				<el-button size="mini" type="success" icon="el-icon-arrow-down">导出数据</el-button>
-				<el-button size="mini" type="primary" icon="el-icon-plus" @click="showAddView">添加员工</el-button>
-			</div>
+			<transition name="slide-fade">
+				<div v-show="showAdvSearchDisabled" style="border: 1px solid #409eff; margin-top: 5px;box-sizing: border-box;border-radius: 5px;margin: 10px 0px;padding: 5px;justify-content: center">
+					<el-row>
+						<el-col :span="5">
+							政治面貌 :
+							<el-select v-model="advEmp.politicId" placeholder="请选择" size="mini">
+								<el-option v-for="item in politicsstatuses" :key="item.id" :label="item.name" :value="item.id">
+								</el-option>
+							</el-select>
+						</el-col>
+						<el-col :span="4">
+							民族 :
+							<el-select v-model="advEmp.nationId" placeholder="请选择" size="mini">
+								<el-option v-for="item in nations" :key="item.id" :label="item.name" :value="item.id">
+								</el-option>
+							</el-select>
+						</el-col>
+						<el-col :span="4">
+							职位 :
+							<el-select v-model="advEmp.posId" placeholder="请选择" size="mini">
+								<el-option v-for="item in positions" :key="item.id" :label="item.name" :value="item.id">
+								</el-option>
+							</el-select>
+						</el-col>
+						<el-col :span="4">
+							职称 :
+							<el-select v-model="advEmp.jobLevelId" placeholder="请选择" size="mini">
+								<el-option v-for="item in jobLevels" :key="item.id" :label="item.name" :value="item.id">
+								</el-option>
+							</el-select>
+						</el-col>
+						<el-col :span="7">
+							聘用形式 :
+							<el-radio-group v-model="advEmp.engageForm">
+								<el-radio label="劳务合同" size="mini"></el-radio>
+								<el-radio label="劳动合同" size="mini"></el-radio>
+							</el-radio-group>
+						</el-col>
+					</el-row>
+					<el-row style="margin-top: 5px;">
+						<el-col :span="5">
+							所属部门 :
+							<el-popover placement="right" title="请选择部门" width="200" trigger="manual" v-model="popVisible">
+								<el-tree default-expand-all :data="allDepts" :props="defaultProps" @node-click="handleNodeClick"></el-tree>
+								<div slot="reference" @click="showDeptView()" style="border: 1px solid #DCDFE6;width: 195px;height: 26px;display: inline-flex; border-radius: 5px;font-size: 13px;padding-left: 10px;box-sizing: border-box;align-items: center;">{{deptName}}</div>
+							</el-popover>
+						</el-col>
+						<el-col span="10">
+							入职日期 :
+							<el-date-picker v-model="advEmp.beginDateScope" size="mini" type="daterange" unlink-panels range-separator="至"
+							 start-placeholder="开始日期" end-placeholder="结束日期" value-format="yyyy-MM-dd" :picker-options="pickerOptions">
+							</el-date-picker>
+						</el-col>
+						<el-col :span="5" :offset="4">
+							<el-button size="mini">取消</el-button>
+							<el-button size="mini" type="primary" icon="el-icon-search" @click="initEmps('advanced')">搜索</el-button>
+						</el-col>
+					</el-row>
+				</div>
+			</transition>
 		</div>
 		<div style="margin-top: 10px;">
 			<template>
@@ -256,6 +323,11 @@
 	export default {
 		data() {
 			return {
+				nomalSearchDisabled: false,
+				showAdvSearchDisabled: false,
+				uploadButtonText: '导入数据',
+				uploadButtonIcon: 'el-icon-upload2',
+				uploadingDisabled: false,
 				title: '',
 				emps: [],
 				total: 0,
@@ -292,6 +364,15 @@
 					"beginContract": "2018-01-01",
 					"endContract": "2020-01-01",
 					"workAge": null
+				},
+				advEmp: {
+					politicId: null,
+					nationId: null,
+					jobLevelId: null,
+					posId: null,
+					engageForm: null,
+					departmentId: null,
+					beginDateScope: null
 				},
 				deptName: '请选择部门',
 				tiptopDegrees: [
@@ -429,6 +510,31 @@
 			}
 		},
 		methods: {
+			showAdvSearch() {
+				this.showAdvSearchDisabled = !this.showAdvSearchDisabled;
+				this.nomalSearchDisabled = this.showAdvSearchDisabled
+			},
+			uploadError(err, file, fileList) {
+				this.uploadingDisabled = false
+				this.uploadButtonIcon = "el-icon-upload2"
+				this.uploadButtonText = "导入数据"
+				this.$message.error(err.msg)
+			},
+			uploadSuccess(response, file, fileList) {
+				this.uploadingDisabled = false
+				this.uploadButtonIcon = "el-icon-upload2"
+				this.uploadButtonText = "导入数据"
+				this.$message.success(response.msg)
+				this.initEmps()
+			},
+			beforeUpload() {
+				this.uploadingDisabled = true
+				this.uploadButtonIcon = "el-icon-loading"
+				this.uploadButtonText = '正在导入'
+			},
+			exportData() {
+				window.open("employee/basic/export");
+			},
 			deleteEmp(id) {
 				this.$confirm('此操作将删除该员工, 是否继续?', '提示', {
 					confirmButtonText: '确定',
@@ -526,6 +632,7 @@
 			handleNodeClick(data) {
 				this.deptName = data.name
 				this.emp.departmentId = data.id
+				this.advEmp.departmentId = data.id
 				this.popVisible = false
 			},
 			showDeptView() {
@@ -577,8 +684,34 @@
 				this.page = cp;
 				this.initEmps()
 			},
-			initEmps() {
-				this.getRequest("employee/basic/getAllEmps?page=" + this.page + "&size=" + this.size + "&keyword=" + this.keyword).then(
+			initEmps(type) {
+				let url = "employee/basic/getAllEmps?";
+				if (type && type == 'advanced') {
+					if (this.advEmp.politicId) {
+						url += '&politicId=' + this.advEmp.politicId;
+					}
+					if (this.advEmp.nationId) {
+						url += '&nationId=' + this.advEmp.nationId;
+					}
+					if (this.advEmp.jobLevelId) {
+						url += '&jobLevelId=' + this.advEmp.jobLevelId;
+					}
+					if (this.advEmp.posId) {
+						url += '&posId=' + this.advEmp.posId;
+					}
+					if (this.advEmp.engageForm) {
+						url += '&engageForm=' + this.advEmp.engageForm;
+					}
+					if (this.advEmp.departmentId) {
+						url += '&departmentId=' + this.advEmp.departmentId;
+					}
+					if (this.advEmp.beginDateScope) {
+						url += '&beginDateScope=' + this.advEmp.beginDateScope;
+					}
+				} else {
+					url += "page=" + this.page + "&size=" + this.size + "&name=" + this.keyword
+				}
+				this.getRequest(url).then(
 					res => {
 						if (res) {
 							this.emps = res.data
@@ -596,4 +729,22 @@
 </script>
 
 <style>
+	/* 可以设置不同的进入和离开动画 */
+	/* 设置持续时间和动画函数 */
+	.slide-fade-enter-active {
+		transition: all .8s ease;
+	}
+
+	.slide-fade-leave-active {
+		transition: all .8s cubic-bezier(1.0, 0.5, 0.8, 1.0);
+	}
+
+	.slide-fade-enter,
+	.slide-fade-leave-to
+
+	/* .slide-fade-leave-active for below version 2.1.8 */
+		{
+		transform: translateX(10px);
+		opacity: 0;
+	}
 </style>
